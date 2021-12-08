@@ -6,9 +6,15 @@ const StringHashMap = std.StringHashMap;
 const print = std.debug.print;
 const mem = std.mem;
 const math = std.math;
+const assert = std.debug.assert;
 
 var gpa_impl = std.heap.GeneralPurposeAllocator(.{}){};
 const gpa = gpa_impl.allocator();
+
+const D8Errors = error{
+    InputLong,
+    InputShort,
+};
 
 const Entry = struct {
     digits: [10][]u8 = undefined,
@@ -16,28 +22,56 @@ const Entry = struct {
     allocator: Allocator,
 
     // TODO: Is this the idiomatic way to pass allocators to a struct?
-    // TODO: This can leak memory on error
     fn fromStr(allocator: Allocator, txt: []const u8) !Entry {
         var ret = Entry{ .allocator = allocator };
         var div_iter = std.mem.tokenize(u8, txt, "|");
         var digits_str = mem.trim(u8, div_iter.next().?, std.ascii.spaces[0..]);
         var outputs_str = mem.trim(u8, div_iter.next().?, std.ascii.spaces[0..]);
 
+        var digits: [10]?[]u8 = [_]?[]u8{ null, null, null, null, null, null, null, null, null, null };
+        errdefer {
+            for (digits) |digit| {
+                if (digit) |p| {
+                    allocator.free(p);
+                }
+            }
+        }
+        var outputs: [4]?[]u8 = [_]?[]u8{ null, null, null, null };
+        errdefer {
+            for (outputs) |output| {
+                if (output) |p| {
+                    allocator.free(p);
+                }
+            }
+        }
+
         var digits_iter = std.mem.tokenize(u8, digits_str, " ");
 
         var i: usize = 0;
         while (digits_iter.next()) |digit| : (i += 1) {
+            if (i >= 10) return D8Errors.InputLong;
             var tmp = try allocator.dupe(u8, digit);
             std.sort.sort(u8, tmp, {}, comptime std.sort.asc(u8));
-            ret.digits[i] = tmp;
+            digits[i] = tmp;
         }
+        if (i != 10) return D8Errors.InputShort;
 
         var outputs_iter = std.mem.tokenize(u8, outputs_str, " ");
         i = 0;
         while (outputs_iter.next()) |output| : (i += 1) {
+            if (i >= 4) return D8Errors.InputLong;
             var tmp = try allocator.dupe(u8, output);
             std.sort.sort(u8, tmp, {}, comptime std.sort.asc(u8));
-            ret.outputs[i] = tmp;
+            outputs[i] = tmp;
+        }
+        if (i != 4) return D8Errors.InputShort;
+
+        for (outputs) |output, j| {
+            ret.outputs[j] = output.?;
+        }
+
+        for (digits) |digit, j| {
+            ret.digits[j] = digit.?;
         }
 
         return ret;
