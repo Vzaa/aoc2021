@@ -31,21 +31,11 @@ fn p1(text: []const u8) !i64 {
                 const last = stack.pop();
                 if (last != matching_open) {
                     switch (c) {
-                        ')' => {
-                            score += 3;
-                        },
-                        ']' => {
-                            score += 57;
-                        },
-                        '}' => {
-                            score += 1197;
-                        },
-                        '>' => {
-                            score += 25137;
-                        },
-                        else => {
-                            unreachable;
-                        },
+                        ')' => score += 3,
+                        ']' => score += 57,
+                        '}' => score += 1197,
+                        '>' => score += 25137,
+                        else => unreachable,
                     }
                 }
             }
@@ -98,21 +88,11 @@ fn p2(text: []const u8) !i64 {
             score *= 5;
 
             switch (c) {
-                '(' => {
-                    score += 1;
-                },
-                '[' => {
-                    score += 2;
-                },
-                '{' => {
-                    score += 3;
-                },
-                '<' => {
-                    score += 4;
-                },
-                else => {
-                    unreachable;
-                },
+                '(' => score += 1,
+                '[' => score += 2,
+                '{' => score += 3,
+                '<' => score += 4,
+                else => unreachable,
             }
         }
         try scores.append(score);
