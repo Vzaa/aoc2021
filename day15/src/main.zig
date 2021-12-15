@@ -2,6 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const AutoHashMap = std.AutoHashMap;
+const PriorityQueue = std.PriorityQueue;
 const print = std.debug.print;
 const mem = std.mem;
 const math = std.math;
@@ -33,55 +34,47 @@ const PC = struct {
 };
 
 fn ucs(cave_map: *CaveMap, tgt: Point) !i32 {
-    var frontier = AutoHashMap(Point, i32).init(gpa);
+    var frontier = PriorityQueue(PC, compPc).init(gpa);
     defer frontier.deinit();
 
-    var visited = AutoHashMap(Point, void).init(gpa);
+    var visited = AutoHashMap(Point, i32).init(gpa);
     defer visited.deinit();
 
     var p = Point{ 0, 0 };
-    try frontier.put(p, 0);
+    try frontier.add(PC{ .p = p, .c = 0 });
 
-    while (true) {
-        var iter = frontier.iterator();
+    while (frontier.removeOrNull()) |cur| {
+        var cur_cost = cur.c;
 
-        // Linear search baby
-        var min: i32 = math.maxInt(i32);
-        var cur: Point = undefined;
-        while (iter.next()) |kv| {
-            if (kv.value_ptr.* < min) {
-                min = kv.value_ptr.*;
-                cur = kv.key_ptr.*;
-            }
+        try visited.put(cur.p, cur.c);
+
+        if (mem.eql(i32, cur.p[0..], tgt[0..])) {
+            return cur.c;
         }
 
-        var cur_cost = frontier.get(cur).?;
-        _ = frontier.remove(cur);
-
-        try visited.put(cur, {});
-
-        if (mem.eql(i32, cur[0..], tgt[0..])) {
-            return cur_cost;
-        }
-
-        const neighbors = getNeighbors(cur);
+        const neighbors = getNeighbors(cur.p);
 
         for (neighbors) |np| {
             if (cave_map.get(np)) |c| {
                 var cost = cur_cost + c;
-                if (!visited.contains(np)) {
-                    var gop = try frontier.getOrPut(np);
-                    if (gop.found_existing) {
-                        gop.value_ptr.* = math.min(cost, gop.value_ptr.*);
-                    } else {
-                        gop.value_ptr.* = cost;
+                if (visited.get(np)) |old_c| {
+                    if (old_c > cost) {
+                        try frontier.add(PC{ .p = np, .c = cost });
+                        try visited.put(np, cost);
                     }
+                } else {
+                    try frontier.add(PC{ .p = np, .c = cost });
+                    try visited.put(np, cost);
                 }
             }
         }
     }
 
     unreachable;
+}
+
+fn compPc(a: PC, b: PC) std.math.Order {
+    return std.math.order(a.c, b.c);
 }
 
 fn p1(text: Str) !i32 {
