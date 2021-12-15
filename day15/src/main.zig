@@ -32,58 +32,56 @@ const PC = struct {
     c: i32,
 };
 
-// did ucs wrong lol, so it finds every path instead
 fn ucs(cave_map: *CaveMap, tgt: Point) !i32 {
-    var frontier = ArrayList(PC).init(gpa);
+    var frontier = AutoHashMap(Point, i32).init(gpa);
     defer frontier.deinit();
 
-    var best = AutoHashMap(Point, i32).init(gpa);
-    defer best.deinit();
+    var visited = AutoHashMap(Point, void).init(gpa);
+    defer visited.deinit();
 
     var p = Point{ 0, 0 };
-    try frontier.append(PC{ .p = p, .c = 0 });
+    try frontier.put(p, 0);
 
-    while (frontier.popOrNull()) |cur| {
-        if (best.get(cur.p)) |c| {
-            if (c < cur.c) continue;
+    while (true) {
+        var iter = frontier.iterator();
+
+        // Linear search baby
+        var min: i32 = math.maxInt(i32);
+        var cur: Point = undefined;
+        while (iter.next()) |kv| {
+            if (kv.value_ptr.* < min) {
+                min = kv.value_ptr.*;
+                cur = kv.key_ptr.*;
+            }
         }
 
-        try best.put(cur.p, cur.c);
+        var cur_cost = frontier.get(cur).?;
+        _ = frontier.remove(cur);
 
-        if (mem.eql(i32, cur.p[0..], tgt[0..])) {
-            // lol
-            // break;
+        try visited.put(cur, {});
+
+        if (mem.eql(i32, cur[0..], tgt[0..])) {
+            return cur_cost;
         }
 
-        const neighbors = getNeighbors(cur.p);
+        const neighbors = getNeighbors(cur);
 
         for (neighbors) |np| {
             if (cave_map.get(np)) |c| {
-                var cost = cur.c + c;
-                if (best.get(np)) |bc| {
-                    if (bc > cost) {
-                        try frontier.append(PC{ .p = np, .c = cost });
+                var cost = cur_cost + c;
+                if (!visited.contains(np)) {
+                    var gop = try frontier.getOrPut(np);
+                    if (gop.found_existing) {
+                        gop.value_ptr.* = math.min(cost, gop.value_ptr.*);
+                    } else {
+                        gop.value_ptr.* = cost;
                     }
-                } else {
-                    try frontier.append(PC{ .p = np, .c = cost });
                 }
             }
         }
-
-        var min: i32 = math.maxInt(i32);
-        var min_idx: usize = 0;
-        for (frontier.items) |f, i| {
-            if (f.c < min) {
-                min = f.c;
-                min_idx = i;
-            }
-        }
-
-        var next = frontier.swapRemove(min_idx);
-        try frontier.append(next);
     }
 
-    return best.get(tgt).?;
+    unreachable;
 }
 
 fn p1(text: Str) !i32 {
