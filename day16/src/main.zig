@@ -85,43 +85,9 @@ const PType = enum {
     }
 };
 
-fn parse(rdr: *bitReader, sum: *u64) anyerror!void {
+fn parse(rdr: *bitReader, vsum: *u64) anyerror!u64 {
     const version = try rdr.readU64(3);
-    sum.* += version;
-
-    const t_v = try rdr.readU64(3);
-    const ptype = try PType.fromU64(t_v);
-
-    switch (ptype) {
-        PType.Literal => {
-            const literal = try rdr.readLiteral();
-            _ = literal;
-        },
-        else => {
-            const i_str = try rdr.read(1);
-            const length_type = i_str[0] == '0';
-
-            if (length_type) {
-                const len = try rdr.readU64(15);
-
-                const ptr_old = rdr.ptr;
-                while (rdr.ptr - ptr_old < len) {
-                    try parse(rdr, sum);
-                }
-            } else {
-                const cnt = try rdr.readU64(11);
-                var i: u64 = 0;
-                while (i < cnt) : (i += 1) {
-                    try parse(rdr, sum);
-                }
-            }
-        },
-    }
-}
-
-fn parse2(rdr: *bitReader) anyerror!u64 {
-    const version = try rdr.readU64(3);
-    _ = version;
+    vsum.* += version;
 
     const t_v = try rdr.readU64(3);
     const ptype = try PType.fromU64(t_v);
@@ -144,14 +110,14 @@ fn parse2(rdr: *bitReader) anyerror!u64 {
                 const ptr_old = rdr.ptr;
 
                 while (rdr.ptr - ptr_old < len) {
-                    const v = try parse2(rdr);
+                    const v = try parse(rdr, vsum);
                     try vals.append(v);
                 }
             } else {
                 const cnt = try rdr.readU64(11);
                 var i: u64 = 0;
                 while (i < cnt) : (i += 1) {
-                    const v = try parse2(rdr);
+                    const v = try parse(rdr, vsum);
                     try vals.append(v);
                 }
             }
@@ -216,7 +182,7 @@ fn p1(text: Str) !usize {
     var rdr = bitReader.fromDat(dat.items);
 
     var sum: u64 = 0;
-    try parse(&rdr, &sum);
+    _ = try parse(&rdr, &sum);
 
     return sum;
 }
@@ -240,7 +206,10 @@ fn p2(text: Str) !usize {
 
     var rdr = bitReader.fromDat(dat.items);
 
-    const v = try parse2(&rdr);
+    var sum: u64 = 0;
+    const v = try parse(&rdr, &sum);
+    _ = sum;
+
     return v;
 }
 
