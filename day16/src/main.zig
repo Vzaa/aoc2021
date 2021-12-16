@@ -33,6 +33,12 @@ const bitReader = struct {
         return self.txt[ptr_old .. ptr_old + len];
     }
 
+    fn readU64(self: *bitReader, len: usize) anyerror!u64 {
+        const txt = try self.read(len);
+        const val = try std.fmt.parseInt(u64, txt, 2);
+        return val;
+    }
+
     fn readLiteral(self: *bitReader) !u64 {
         var buf = ArrayList(u8).init(gpa);
         defer buf.deinit();
@@ -64,8 +70,7 @@ const PType = enum {
     LT,
     EQ,
 
-    fn fromStr(s: Str) !PType {
-        const val = try std.fmt.parseInt(u64, s, 2);
+    fn fromU64(val: u64) !PType {
         switch (val) {
             0 => return PType.Sum,
             1 => return PType.Product,
@@ -80,13 +85,12 @@ const PType = enum {
     }
 };
 
-fn parse(rdr: *bitReader, sum: *usize) anyerror!void {
-    const v_str = try rdr.read(3);
-    const version = try std.fmt.parseInt(u64, v_str, 2);
+fn parse(rdr: *bitReader, sum: *u64) anyerror!void {
+    const version = try rdr.readU64(3);
     sum.* += version;
 
-    const t_str = try rdr.read(3);
-    const ptype = try PType.fromStr(t_str);
+    const t_v = try rdr.readU64(3);
+    const ptype = try PType.fromU64(t_v);
 
     switch (ptype) {
         PType.Literal => {
@@ -98,17 +102,15 @@ fn parse(rdr: *bitReader, sum: *usize) anyerror!void {
             const length_type = i_str[0] == '0';
 
             if (length_type) {
-                const len_str = try rdr.read(15);
-                const len = try std.fmt.parseInt(u64, len_str, 2);
+                const len = try rdr.readU64(15);
 
                 const ptr_old = rdr.ptr;
                 while (rdr.ptr - ptr_old < len) {
                     try parse(rdr, sum);
                 }
             } else {
-                const cnt_str = try rdr.read(11);
-                const cnt = try std.fmt.parseInt(u64, cnt_str, 2);
-                var i: usize = 0;
+                const cnt = try rdr.readU64(11);
+                var i: u64 = 0;
                 while (i < cnt) : (i += 1) {
                     try parse(rdr, sum);
                 }
@@ -118,12 +120,11 @@ fn parse(rdr: *bitReader, sum: *usize) anyerror!void {
 }
 
 fn parse2(rdr: *bitReader) anyerror!u64 {
-    const v_str = try rdr.read(3);
-    const version = try std.fmt.parseInt(u64, v_str, 2);
+    const version = try rdr.readU64(3);
     _ = version;
 
-    const t_str = try rdr.read(3);
-    const ptype = try PType.fromStr(t_str);
+    const t_v = try rdr.readU64(3);
+    const ptype = try PType.fromU64(t_v);
 
     switch (ptype) {
         PType.Literal => {
@@ -138,8 +139,7 @@ fn parse2(rdr: *bitReader) anyerror!u64 {
             defer vals.deinit();
 
             if (length_type) {
-                const len_str = try rdr.read(15);
-                const len = try std.fmt.parseInt(u64, len_str, 2);
+                const len = try rdr.readU64(15);
 
                 const ptr_old = rdr.ptr;
 
@@ -148,9 +148,8 @@ fn parse2(rdr: *bitReader) anyerror!u64 {
                     try vals.append(v);
                 }
             } else {
-                const cnt_str = try rdr.read(11);
-                const cnt = try std.fmt.parseInt(u64, cnt_str, 2);
-                var i: usize = 0;
+                const cnt = try rdr.readU64(11);
+                var i: u64 = 0;
                 while (i < cnt) : (i += 1) {
                     const v = try parse2(rdr);
                     try vals.append(v);
@@ -216,7 +215,7 @@ fn p1(text: Str) !usize {
 
     var rdr = bitReader.fromDat(dat.items);
 
-    var sum: usize = 0;
+    var sum: u64 = 0;
     try parse(&rdr, &sum);
 
     return sum;
