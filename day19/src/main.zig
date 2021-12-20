@@ -80,30 +80,33 @@ fn orient(p: Point, o: u8) Point {
 
 const Scanner = struct {
     points: ArrayList(Point),
+    oriented: ArrayList(Point),
     diff: Point,
     orient: u8,
 
     fn init() Scanner {
         const p = ArrayList(Point).init(gpa);
-        return Scanner{ .points = p, .orient = 0, .diff = Point{ 0, 0, 0 } };
+        const oriented = ArrayList(Point).init(gpa);
+        return Scanner{ .points = p, .oriented = oriented, .orient = 0, .diff = Point{ 0, 0, 0 } };
     }
 
     fn put(self: *Scanner, p: Point) !void {
         try self.points.append(p);
     }
 
-    fn getPoints(self: *Scanner) !ArrayList(Point) {
-        var p = ArrayList(Point).init(gpa);
+    fn getOriented(self: *Scanner) ![]Point {
+        self.oriented.clearRetainingCapacity();
 
         for (self.points.items) |x| {
-            try p.append(orient(x, self.orient));
+            try self.oriented.append(orient(x, self.orient));
         }
 
-        return p;
+        return self.oriented.items;
     }
 
     fn deinit(self: *Scanner) void {
         self.points.deinit();
+        self.oriented.deinit();
     }
 };
 
@@ -115,14 +118,11 @@ fn add(a: Point, b: Point) Point {
     return Point{ a[0] + b[0], a[1] + b[1], a[2] + b[2] };
 }
 
-fn diffs(pts: []Point, p: Point) !ArrayList(Point) {
-    var d = ArrayList(Point).init(gpa);
-
+fn diffs(pts: []Point, p: Point, d: *ArrayList(Point)) !void {
+    d.clearRetainingCapacity();
     for (pts) |x| {
         try d.append(diff(x, p));
     }
-
-    return d;
 }
 
 fn sliceComp(a: []Point, b: []Point) usize {
@@ -140,25 +140,28 @@ fn sliceComp(a: []Point, b: []Point) usize {
 fn compare(a: *const Scanner, b: *Scanner) !bool {
     assert(a.orient == 0);
 
+    var lista = ArrayList(Point).init(gpa);
+    defer lista.deinit();
+
+    var listb = ArrayList(Point).init(gpa);
+    defer listb.deinit();
+
     var o: u8 = 0;
     while (o < 48) : (o += 1) {
         b.orient = o;
-        const b_points = try b.getPoints();
-        defer b_points.deinit();
+        const b_points = try b.getOriented();
 
         for (a.points.items) |pa| {
-            var lista = try diffs(a.points.items, pa);
-            defer lista.deinit();
+            try diffs(a.points.items, pa, &lista);
 
-            for (b_points.items) |pb| {
-                var listb = try diffs(b_points.items, pb);
-                defer listb.deinit();
+            for (b_points) |pb| {
+                try diffs(b_points, pb, &listb);
 
                 const same = sliceComp(lista.items, listb.items);
                 if (same >= 12) {
                     //fix pos
                     b.points.clearRetainingCapacity();
-                    for (b_points.items) |old| {
+                    for (b_points) |old| {
                         const d = diff(pa, pb);
                         const n = add(d, old);
                         try b.points.append(n);
@@ -266,12 +269,13 @@ fn mDist(a: Point, b: Point) !i32 {
 pub fn main() anyerror!void {
     defer _ = gpa_impl.deinit();
     const text = @embedFile("../input");
-    print("Part 1: {}\n", .{p1(text)});
+    _ = try p1(text);
+    // print("Part 1: {}\n", .{p1(text)});
     // print("Part 2: {}\n", .{p2(text)});
 }
 
 test "examples" {
-    // defer _ = gpa_impl.deinit();
+    defer _ = gpa_impl.deinit();
     const text = @embedFile("../test");
     try std.testing.expectEqual(p1(text), 79);
     // try std.testing.expectEqual(p2(text), 0);
