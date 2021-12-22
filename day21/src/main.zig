@@ -148,6 +148,8 @@ fn p2(text: Str) !u64 {
     var turn: usize = 0;
 
     outer: while (true) : (turn += 1) {
+        print("{}\n", .{turn});
+        
         var next = AutoHashMap(Game, usize).init(gpa);
 
         var iter = states.iterator();
